@@ -131,6 +131,20 @@ jobs:
 
       - name: Build everything
         run: |
+          # 1. Undo the damage done by entrypoint.sh
+          # We force the path back to the workspace so actions/cache can find it.
+          export CCACHE_DIR="${{ github.workspace }}/.ccache"
+          
+          # 2. Force CI-friendly settings (overriding any system config)
+          export CCACHE_BASEDIR="${{ github.workspace }}"
+          export CCACHE_COMPILERCHECK="content"
+          export CCACHE_SLOPPINESS="include_file_ctime,time_macros"
+          
+          # 3. Create the directory again (just to be safe)
+          mkdir -p "$CCACHE_DIR"
+          
+          echo "Fixed CCACHE_DIR: $CCACHE_DIR"
+          
           # derive whether or not to compile with MPI options ON.
           [ "${{ matrix.config.cc }}" = 'mpicc' ] && UseMPI=ON || UseMPI=OFF          
           mkdir build && cd build
