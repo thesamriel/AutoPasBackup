@@ -57,7 +57,7 @@ jobs:
           ! grep '#ifdef AUTOPAS_OPENMP'  **/*.{h,cpp}
           ! grep '#if defined.AUTOPAS_OPENMP'  **/*.{h,cpp}
 
-Setup:
+  Setup:
     runs-on: ubuntu-latest
     outputs:
       matrix-config: ${{ steps.set-matrix.outputs.config }}
