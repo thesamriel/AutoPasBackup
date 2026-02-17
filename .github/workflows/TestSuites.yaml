@@ -143,8 +143,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.config.name }}
-          path: |
-            ${{ github.workspace }}/build
+          path: build/
           retention-days: 1
 
   TestJob:
@@ -188,7 +187,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-${{ matrix.config.name }}
-          path: ${{ github.workspace }}
+          path: build
 
       - name: Run tests
         run: |
