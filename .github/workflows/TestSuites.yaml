@@ -175,7 +175,7 @@ jobs:
             ..
           cmake --build . --parallel 8
 
-          chmod -R 777 .ccache
+          chmod -R 777 "${{ github.workspace }}/.ccache"
 
       - name: Run tests ${{ matrix.part }}/2
         # Skip tests for Debug builds (compilation check only)
