@@ -183,6 +183,10 @@ jobs:
       image: autopas/${{ matrix.config.container }}
       options: --entrypoint /bin/bash
 
+    env:
+      TSAN_OPTIONS: "ignore_noninstrumented_modules=1"
+      LSAN_OPTIONS: "verbosity=1:log_threads=1"
+      
     defaults:
       run:
         shell: bash
