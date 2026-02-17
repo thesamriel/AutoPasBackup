@@ -91,6 +91,7 @@ jobs:
     name: ${{ matrix.config.name }} ${{ matrix.part }}
     container:
       image: autopas/${{ matrix.config.container }}
+      # Don't use the docker file entrypoint.sh, which changes ccache variables
       options: --entrypoint /bin/bash
 
     env:
@@ -106,14 +107,10 @@ jobs:
       run:
         # make sure the scripts are executed with bash (needed for [[) and not sh.
         shell: bash
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Prepare ccache
-        run: |
-          mkdir -p "${{ github.workspace }}/.ccache"
-          chmod -R 777 "${{ github.workspace }}/.ccache"
 
       - name: Ccache
         uses: actions/cache@v4
@@ -154,7 +151,6 @@ jobs:
             -DAUTOPAS_ENABLE_DYNAMIC_CONTAINERS=ON \
             ..
           cmake --build . --parallel 8
-          # chmod -R 777 "${{ github.workspace }}/.ccache"
 
       - name: Run tests ${{ matrix.part }}/2
         # Skip tests for Debug builds (compilation check only)
