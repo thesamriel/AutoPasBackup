@@ -191,6 +191,7 @@ jobs:
 
       - name: Run tests
         run: |
+          chmod -R +x ${{ github.workspace }}/build
           cd build
           
           # --- CASE 1: Single-Site (Standard) ---
