@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           # 1. Define the FULL Matrix
-          read -r -d '' full_matrix << EOM
+          read -r -d '' full_matrix << EOM || true
           [
             { "name": "Clang-Debug-CompileOnly", "container": "autopas-build-clang", "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Debug", "omp": "ON", "asan": "OFF", "tsan": "OFF", "avx": "ON", "site": "singlesite" },
             { "name": "Clang-Release-ASan", "container": "autopas-build-clang",  "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Release", "omp": "OFF", "asan": "ON",  "tsan": "OFF", "avx": "ON",  "site": "singlesite" },
@@ -80,7 +80,7 @@ jobs:
 
           # 2. Define the LIGHT Matrix
           # Just one representative config.
-          read -r -d '' light_matrix << EOM
+          read -r -d '' light_matrix << EOM || true
           [
             { "name": "Clang-Release-OMP-ASan", "container": "autopas-build-clang",  "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Release", "omp": "ON", "asan": "ON",  "tsan": "OFF", "avx": "ON",  "site": "singlesite" }
           ]
