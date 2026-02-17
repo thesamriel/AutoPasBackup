@@ -64,17 +64,17 @@ jobs:
       matrix:
         config:
           # --- Standard Configurations ---
-          - { name: "Clang Release ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang Debug OMP ASan",   container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Debug",   omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang Release OMP TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
+          - { name: "Clang-Release-ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "Clang-Debug-OMP-ASan",   container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Debug",   omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "Clang-Release-OMP-TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
 
           # --- GCC & MPI ---
-          - { name: "GCC Release OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "MPI Release OMP ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "GCC-Release-OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "MPI-Release-OMP-ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
 
           # --- Multi-Site ---
-          - { name: "MultiSite Clang OMP TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
-          - { name: "MultiSite MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
+          - { name: "MultiSite-Clang-OMP-TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
+          - { name: "MultiSite-MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
 
     name: Build ${{ matrix.config.name }}
     container:
@@ -103,12 +103,16 @@ jobs:
           key: ccache-${{ matrix.config.name }}-${{ github.sha }}
           restore-keys: ccache-${{ matrix.config.name }}-
 
-      - name: Build everything
+      - name: Build Everything
         run: |
           # derive whether or not to compile with MPI options ON.
           [ "${{ matrix.config.cc }}" = 'mpicc' ] && UseMPI=ON || UseMPI=OFF          
           mkdir build && cd build
-
+          
+          # -march=x86-64-v3 covers Haswell (2013) and newer. Safe for all GHA runners.
+          export CFLAGS="-march=x86-64-v3"
+          export CXXFLAGS="-march=x86-64-v3"
+          
           CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }} cmake \
             -G "${{ matrix.config.builder }}" \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -132,7 +136,7 @@ jobs:
             -DAUTOPAS_ENABLE_ENERGY_MEASUREMENTS=ON \
             -DAUTOPAS_ENABLE_DYNAMIC_CONTAINERS=ON \
             ..
-          cmake --build . --parallel 8
+          cmake --build . --parallel $(nproc)
 
       - name: Save Build Binaries
         uses: actions/upload-artifact@v4
@@ -151,23 +155,23 @@ jobs:
         part: [ 1, 2, 3, 4 ]
         config:
           # --- Standard Configurations ---
-          - { name: "Clang Release ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang Release OMP TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
+          - { name: "Clang-Release-ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "Clang-Release-OMP-TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
 
           # --- GCC & MPI ---
-          - { name: "GCC Release OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "MPI Release OMP ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "GCC-Release-OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "MPI-Release-OMP-ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
 
           # --- Multi-Site ---
-          - { name: "MultiSite Clang OMP TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
-          - { name: "MultiSite MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
+          - { name: "MultiSite-Clang-OMP-TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
+          - { name: "MultiSite-MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
 
         exclude:
           # Exclude multisite tests (to later be re-added for some configurations)
           - config: { site: "multisite" }
             part: 2, 3, 4
           # Exclude MPI configuration from part 2, as there are not many tests and so don't need to be split
-          - config: { name: "MPI Release OMP ASan" }
+          - config: { name: "MPI-Release-OMP-ASan" }
             part: 2, 3, 4
 
     name: Run tests ${{ matrix.config.name }} (${{ matrix.part }}/4)
