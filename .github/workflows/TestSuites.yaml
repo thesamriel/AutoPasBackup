@@ -173,11 +173,19 @@ jobs:
         exclude:
           # Exclude multisite tests (to later be re-added for some configurations)
           - config: { site: "multisite" }
-            part: 2, 3, 4
+            part: 2
+          - config: { site: "multisite" }
+            part: 3
+          - config: { site: "multisite" }
+            part: 4
           # Exclude MPI configuration from part 2, as there are not many tests and so don't need to be split
           - config: { name: "MPI-Release-OMP-ASan" }
-            part: 2, 3, 4
-
+            part: 2
+          - config: { name: "MPI-Release-OMP-ASan" }
+            part: 3
+          - config: { name: "MPI-Release-OMP-ASan" }
+            part: 4
+            
     name: Run tests ${{ matrix.config.name }} (${{ matrix.part }}/4)
     container:
       image: autopas/${{ matrix.config.container }}
