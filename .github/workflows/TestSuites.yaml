@@ -65,16 +65,16 @@ jobs:
         part: [ 1, 2 ] # Split tests into two parts, to be run by separate runners
         config:
           # --- Standard Configurations ---
-          - { name: "Clang Release", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang Debug",   container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Debug",   omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
+          - { name: "Clang Release ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "Clang Debug OMP ASan",   container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Debug",   omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "Clang Release OMP TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
 
           # --- GCC & MPI ---
-          - { name: "GCC Release",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "MPI Release",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "GCC Release OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
+          - { name: "MPI Release OMP ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
 
           # --- Multi-Site ---
-          - { name: "MultiSite TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
+          - { name: "MultiSite Clang OMP TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
           - { name: "MultiSite MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
 
         exclude:
@@ -82,15 +82,13 @@ jobs:
           - config: { mode: "Debug" }
             part: 2
           # Exclude multisite tests (to later be re-added for some configurations)
-          - config: { name: "MultiSite TSan" }
-            part: 2
-          - config: { name: "MultiSite MPI" }
+          - config: { site: "multisite" }
             part: 2
           # Exclude MPI configuration from part 2, as there are not many tests and so don't need to be split
-          - config: { name: "MPI Release" }
+          - config: { name: "MPI Release OMP ASan" }
             part: 2
 
-    name: ${{ matrix.config.name }} (${{ matrix.part }}/2)
+    name: ${{ matrix.config.name }} ${{ matrix.part }}
     container:
       image: autopas/${{ matrix.config.container }}
       options: --entrypoint /bin/bash
@@ -103,10 +101,6 @@ jobs:
       CCACHE_SLOPPINESS: "include_file_ctime,time_macros"
       CCACHE_COMPILERCHECK: "content"
       CCACHE_MAXSIZE: "500M"
-
-      # TEMPORARY DEBUGGING yu
-      CCACHE_DEBUG: "1"
-      CCACHE_LOGFILE: "${{ github.workspace }}/ccache_debug.log"
 
     defaults:
       run:
@@ -132,20 +126,6 @@ jobs:
 
       - name: Build everything
         run: |
-          # 1. Undo the damage done by entrypoint.sh
-          # We force the path back to the workspace so actions/cache can find it.
-          # export CCACHE_DIR="${{ github.workspace }}/.ccache"
-          
-          # 2. Force CI-friendly settings (overriding any system config)
-          # export CCACHE_BASEDIR="${{ github.workspace }}"
-          # export CCACHE_COMPILERCHECK="content"
-          # export CCACHE_SLOPPINESS="include_file_ctime,time_macros"
-          
-          # 3. Create the directory again (just to be safe)
-          # mkdir -p "$CCACHE_DIR"
-          
-          echo "Fixed CCACHE_DIR: $CCACHE_DIR"
-          
           # derive whether or not to compile with MPI options ON.
           [ "${{ matrix.config.cc }}" = 'mpicc' ] && UseMPI=ON || UseMPI=OFF          
           mkdir build && cd build
@@ -156,7 +136,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCCACHE=ON \
             -DCMAKE_BUILD_TYPE=${{ matrix.config.mode }} \
-            -DAUTOPAS_LOG_ALL=OFF \
+            -DAUTOPAS_LOG_ALL=ON \
             -DAUTOPAS_MIN_LOG_LVL:STRING=TRACE \
             -DAUTOPAS_OPENMP=${{ matrix.config.omp }} \
             -DAUTOPAS_ENABLE_ADDRESS_SANITIZER=${{ matrix.config.asan }} \
@@ -164,18 +144,17 @@ jobs:
             -DAUTOPAS_INTERNODE_TUNING=${UseMPI} \
             -DMD_FLEXIBLE_USE_MPI=${UseMPI} \
             -DMD_FLEXIBLE_MODE=${{ matrix.config.site }} \
-            -DMD_FLEXIBLE_FUNCTOR_AUTOVEC=OFF \
+            -DMD_FLEXIBLE_FUNCTOR_AUTOVEC=ON \
             -DMD_FLEXIBLE_FUNCTOR_AVX=${{ matrix.config.avx }} \
             -DMD_FLEXIBLE_FUNCTOR_SVE=OFF \
             -DMD_FLEXIBLE_ENABLE_ALLLBL=${UseMPI} \
-            -DAUTOPAS_ENABLE_HARMONY=OFF \
-            -DAUTOPAS_ENABLE_RULES_BASED_AND_FUZZY_TUNING=OFF \
-            -DAUTOPAS_ENABLE_ENERGY_MEASUREMENTS=OFF \
-            -DAUTOPAS_ENABLE_DYNAMIC_CONTAINERS=OFF \
+            -DAUTOPAS_ENABLE_HARMONY=ON \
+            -DAUTOPAS_ENABLE_RULES_BASED_AND_FUZZY_TUNING=ON \
+            -DAUTOPAS_ENABLE_ENERGY_MEASUREMENTS=ON \
+            -DAUTOPAS_ENABLE_DYNAMIC_CONTAINERS=ON \
             ..
           cmake --build . --parallel 8
-
-          chmod -R 777 "${{ github.workspace }}/.ccache"
+          # chmod -R 777 "${{ github.workspace }}/.ccache"
 
       - name: Run tests ${{ matrix.part }}/2
         # Skip tests for Debug builds (compilation check only)
@@ -220,23 +199,14 @@ jobs:
              ctest --output-on-failure --build-config mdFlexTests
           fi
 
-      - name: Check ccache stats
+      - name: Check CCache stats
         # Run this even if build fails so we see if cache was populated
-        # small change todo
         if: always()
         run: |
           echo "Checking ccache statistics..."
           ccache -s
           echo "Contents of cache dir:"
           ls -la $CCACHE_DIR
-
-      # ADD THIS AT THE END OF STEPS
-      - name: Upload Ccache Log
-        if: always() # Run even if build fails
-        uses: actions/upload-artifact@v4
-        with:
-          name: ccache-log-${{ matrix.config.name }}
-          path: ${{ github.workspace }}/ccache_debug.log
 
   macOSJob:
     runs-on: macos-latest
