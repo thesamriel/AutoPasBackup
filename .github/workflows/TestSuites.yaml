@@ -6,6 +6,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
 
 # abort old runs if a new one is started
 concurrency:
@@ -56,26 +57,68 @@ jobs:
           ! grep '#ifdef AUTOPAS_OPENMP'  **/*.{h,cpp}
           ! grep '#if defined.AUTOPAS_OPENMP'  **/*.{h,cpp}
 
+Setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix-config: ${{ steps.set-matrix.outputs.config }}
+    steps:
+      - id: set-matrix
+        shell: bash
+        run: |
+          # 1. Define the FULL Matrix
+          read -r -d '' full_matrix << EOM
+          [
+            # One debug config for compilation test only
+            { "name": "Clang-Debug-CompileOnly", "container": "autopas-build-clang", "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Debug", "omp": "ON", "asan": "OFF", "tsan": "OFF", "avx": "ON", "site": "singlesite" }
+            # A few combinations of Compiler and Sanitizers
+            { "name": "Clang-Release-ASan", "container": "autopas-build-clang",  "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Release", "omp": "OFF", "asan": "ON",  "tsan": "OFF", "avx": "ON",  "site": "singlesite" },
+            { "name": "Clang-Release-OMP-TSan", "container": "autopas-build-archer", "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Release", "omp": "ON",  "asan": "OFF", "tsan": "ON",  "avx": "ON",  "site": "singlesite" },
+            { "name": "GCC-Release-OMP", "container": "autopas-build-gcc",    "cc": "gcc",   "cxx": "g++",     "builder": "Unix Makefiles", "mode": "Release", "omp": "ON",  "asan": "OFF", "tsan": "OFF", "avx": "ON",  "site": "singlesite" },
+            { "name": "MPI-Release-OMP-ASan", "container": "autopas-build-gcc",    "cc": "mpicc", "cxx": "mpic++",  "builder": "Unix Makefiles", "mode": "Release", "omp": "ON",  "asan": "ON",  "tsan": "OFF", "avx": "ON",  "site": "singlesite" },
+            # Multisite configs
+            { "name": "Clang-OMP-TSan-MultiSite", "container": "autopas-build-archer", "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Release", "omp": "ON",  "asan": "OFF", "tsan": "ON",  "avx": "OFF", "site": "multisite" },
+            { "name": "MPI-MultiSite", "container": "autopas-build-gcc",    "cc": "mpicc", "cxx": "mpic++",  "builder": "Unix Makefiles", "mode": "Release", "omp": "ON",  "asan": "ON",  "tsan": "OFF", "avx": "OFF", "site": "multisite" }
+          ]
+          EOM
+
+          # 2. Define the LIGHT Matrix
+          # Just one representative config.
+          read -r -d '' light_matrix << EOM
+          [
+            { "name": "Clang-Release-OMP-ASan", "container": "autopas-build-clang",  "cc": "clang", "cxx": "clang++", "builder": "Ninja", "mode": "Release", "omp": "ON", "asan": "ON",  "tsan": "OFF", "avx": "ON",  "site": "singlesite" }
+          ]
+          EOM
+          
+          # 1. Master always runs Full
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "Trigger: Master branch. Using FULL matrix."
+            matrix_json="$full_matrix"
+
+          # 2. If PR is NOT a Draft -> Run Full
+          # (github.event.pull_request.draft is 'false' when Ready for Review)
+          elif [[ "${{ github.event.pull_request.draft }}" == "false" ]]; then
+            echo "Trigger: PR is Ready (Not Draft). Using FULL matrix."
+            matrix_json="$full_matrix"
+
+          # 3. If PR IS a Draft -> Run Light
+          else
+            echo "Trigger: PR is Draft. Using LIGHT matrix."
+            matrix_json="$light_matrix"
+          fi
+
+          # Output the result
+          echo "config=$(echo "$matrix_json" | jq -c .)" >> $GITHUB_OUTPUT
+          
   BuildJob:
+    needs: Setup
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        config:
-          # --- Standard Configurations ---
-          - { name: "Clang-Release-ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang-Debug-OMP-ASan",   container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Debug",   omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang-Release-OMP-TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
-
-          # --- GCC & MPI ---
-          - { name: "GCC-Release-OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "MPI-Release-OMP-ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-
-          # --- Multi-Site ---
-          - { name: "MultiSite-Clang-OMP-TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
-          - { name: "MultiSite-MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
-
+        # Defined in the Setup job
+        config: ${{ fromJson(needs.Setup.outputs.matrix-config) }}
+        
     name: Build ${{ matrix.config.name }}
     container:
       image: autopas/${{ matrix.config.container }}
@@ -83,8 +126,6 @@ jobs:
       options: --entrypoint /bin/bash
 
     env:
-      TSAN_OPTIONS: "ignore_noninstrumented_modules=1"
-      LSAN_OPTIONS: "verbosity=1:log_threads=1"
       CCACHE_DIR: "${{ github.workspace }}/.ccache"
       CCACHE_BASEDIR: "${{ github.workspace }}"
       CCACHE_SLOPPINESS: "include_file_ctime,time_macros"
@@ -129,7 +170,7 @@ jobs:
             -DAUTOPAS_ENABLE_ADDRESS_SANITIZER=${{ matrix.config.asan }} \
             -DAUTOPAS_ENABLE_THREAD_SANITIZER=${{ matrix.config.tsan }} \
             -DAUTOPAS_INTERNODE_TUNING=${UseMPI} \
-            -DAUTOPAS_USE_VECTORIZATION=OFF \
+            -DAUTOPAS_USE_VECTORIZATION=OFF \ # Avoid -march=native which messes up with changing GitHub runners
             -DMD_FLEXIBLE_USE_MPI=${UseMPI} \
             -DMD_FLEXIBLE_MODE=${{ matrix.config.site }} \
             -DMD_FLEXIBLE_FUNCTOR_AUTOVEC=ON \
@@ -152,28 +193,19 @@ jobs:
           name: build-${{ matrix.config.name }}
           path: build.tar.gz
           retention-days: 1
-
+          
   TestJob:
-    needs: BuildJob
+    needs: [Setup, BuildJob]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         part: [ 1, 2, 3, 4 ]
-        config:
-          # --- Standard Configurations ---
-          - { name: "Clang-Release-ASan", container: "autopas-build-clang",  cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "OFF", asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "Clang-Release-OMP-TSan",    container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "ON",  site: "singlesite" }
-
-          # --- GCC & MPI ---
-          - { name: "GCC-Release-OMP ",   container: "autopas-build-gcc",    cc: "gcc",   cxx: "g++",     builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "OFF", tsan: "OFF", avx: "ON",  site: "singlesite" }
-          - { name: "MPI-Release-OMP-ASan",   container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "ON",  site: "singlesite" }
-
-          # --- Multi-Site ---
-          - { name: "MultiSite-Clang-OMP-TSan", container: "autopas-build-archer", cc: "clang", cxx: "clang++", builder: "Ninja",             mode: "Release", omp: "ON",  asan: "OFF", tsan: "ON",  avx: "OFF", site: "multisite" }
-          - { name: "MultiSite-MPI",  container: "autopas-build-gcc",    cc: "mpicc", cxx: "mpic++",  builder: "Unix Makefiles", mode: "Release", omp: "ON",  asan: "ON",  tsan: "OFF", avx: "OFF", site: "multisite" }
-
+        config: ${{ fromJson(needs.Setup.outputs.matrix-config) }}
+        
         exclude:
+          # Exclude debug builds
+          - config: { mode: "Debug" }
           # Exclude multisite tests (to later be re-added for some configurations)
           - config: { site: "multisite" }
             part: 2
@@ -182,11 +214,11 @@ jobs:
           - config: { site: "multisite" }
             part: 4
           # Exclude MPI configuration from part 2, as there are not many tests and so don't need to be split
-          - config: { name: "MPI-Release-OMP-ASan" }
+          - config: { cc: "mpicc" }
             part: 2
-          - config: { name: "MPI-Release-OMP-ASan" }
+          - config: { cc: "mpicc" }
             part: 3
-          - config: { name: "MPI-Release-OMP-ASan" }
+          - config: { cc: "mpicc" }
             part: 4
             
     name: Run tests ${{ matrix.config.name }} (${{ matrix.part }}/4)
