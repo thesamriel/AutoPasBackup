@@ -191,6 +191,7 @@ jobs:
 
       - name: Run tests
         run: |
+          ls -R
           chmod -R +x ${{ github.workspace }}/build
           cd build
           
