@@ -191,8 +191,8 @@ jobs:
 
       - name: Run tests
         run: |
-          ls -R
-          chmod -R +x ${{ github.workspace }}/build
+#          ls -R
+#          chmod -R +x ${{ github.workspace }}/build
           cd build
           
           # --- CASE 1: Single-Site (Standard) ---
