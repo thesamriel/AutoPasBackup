@@ -91,7 +91,9 @@ jobs:
             part: 2
 
     name: ${{ matrix.config.name }} (${{ matrix.part }}/2)
-    container: autopas/${{ matrix.config.container }}
+    container:
+      image: autopas/${{ matrix.config.container }}
+      options: --entrypoint /bin/bash
 
     env:
       TSAN_OPTIONS: "ignore_noninstrumented_modules=1"
